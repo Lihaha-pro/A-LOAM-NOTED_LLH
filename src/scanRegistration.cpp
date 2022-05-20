@@ -57,19 +57,24 @@ using std::atan2;
 using std::cos;
 using std::sin;
 
-const double scanPeriod = 0.1;
+const double scanPeriod = 0.1;//一帧点云的扫描周期
 
-const int systemDelay = 0; 
+const int systemDelay = 0; //跳过多少帧雷达数据
 int systemInitCount = 0;
 bool systemInited = false;
-int N_SCANS = 0;
-float cloudCurvature[400000];
-int cloudSortInd[400000];
-int cloudNeighborPicked[400000];
+int N_SCANS = 0;//扫描线数 16
+float cloudCurvature[400000];//点云曲率：相邻十个点分别计算三个方向的位移和，然后平方和作为曲率
+int cloudSortInd[400000];//特征提取时排序用的中间变量
+int cloudNeighborPicked[400000];//点是否筛选过标志：0-未筛选过，1-筛选过
+// Label 2: corner_sharp
+// Label 1: corner_less_sharp, 包含Label 2
+// Label -1: surf_flat
+// Label 0: surf_less_flat， 包含Label -1，因为点太多，最后会降采样
 int cloudLabel[400000];
-
+///利用曲率进行排序，很细节啊！
 bool comp (int i,int j) { return (cloudCurvature[i]<cloudCurvature[j]); }
 
+//一系列话题发布
 ros::Publisher pubLaserCloud;
 ros::Publisher pubCornerPointsSharp;
 ros::Publisher pubCornerPointsLessSharp;
@@ -80,11 +85,19 @@ std::vector<ros::Publisher> pubEachScan;
 
 bool PUB_EACH_LINE = false;
 
-double MINIMUM_RANGE = 0.1; 
+double MINIMUM_RANGE = 0.1; //去除太近的点云的距离阈值，launch文件给出的是0.3米
 
+/**
+ * @brief 去除雷达坐标系下点云附近距离小于thres的点，并瘦身cloud.points
+ * 
+ * @tparam PointT 
+ * @param cloud_in 
+ * @param cloud_out 
+ * @param thres 
+ */
 template <typename PointT>
 void removeClosedPointCloud(const pcl::PointCloud<PointT> &cloud_in,
-                              pcl::PointCloud<PointT> &cloud_out, float thres)
+                                  pcl::PointCloud<PointT> &cloud_out, float thres)
 {
     if (&cloud_in != &cloud_out)
     {
@@ -96,8 +109,9 @@ void removeClosedPointCloud(const pcl::PointCloud<PointT> &cloud_in,
 
     for (size_t i = 0; i < cloud_in.points.size(); ++i)
     {
-        if (cloud_in.points[i].x * cloud_in.points[i].x + cloud_in.points[i].y * cloud_in.points[i].y + cloud_in.points[i].z * cloud_in.points[i].z < thres * thres)
-            continue;
+        if (cloud_in.points[i].x * cloud_in.points[i].x + cloud_in.points[i].y * cloud_in.points[i].y + cloud_in.points[i].z * cloud_in.points[i].z 
+            < thres * thres)
+            continue;//跳过距离过近的点
         cloud_out.points[j] = cloud_in.points[i];
         j++;
     }
@@ -110,9 +124,14 @@ void removeClosedPointCloud(const pcl::PointCloud<PointT> &cloud_in,
     cloud_out.width = static_cast<uint32_t>(j);
     cloud_out.is_dense = true;
 }
-
+/**
+ * @brief 激光雷达回调函数
+ * 
+ * @param laserCloudMsg 原始输入点云
+ */
 void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr &laserCloudMsg)
 {
+    //跳过开头systemDelay帧雷达数据
     if (!systemInited)
     { 
         systemInitCount++;
@@ -129,16 +148,22 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr &laserCloudMsg)
     std::vector<int> scanStartInd(N_SCANS, 0);
     std::vector<int> scanEndInd(N_SCANS, 0);
 
-    pcl::PointCloud<pcl::PointXYZ> laserCloudIn;
+    pcl::PointCloud<pcl::PointXYZ> laserCloudIn;//PCL格式原始点云
     pcl::fromROSMsg(*laserCloudMsg, laserCloudIn);
     std::vector<int> indices;
 
-    // 首先对点云滤波，去除NaN值得无效点云，以及在Lidar坐标系原点MINIMUM_RANGE距离以内的点
-    pcl::removeNaNFromPointCloud(laserCloudIn, laserCloudIn, indices);
-    removeClosedPointCloud(laserCloudIn, laserCloudIn, MINIMUM_RANGE);
+    // Step 首先对点云滤波，去除NaN值的无效点云
+    // std::cout << "is dense = " << laserCloudIn.is_dense << std::endl;///输出显示，点云本身是稠密的，所有没有NaN点的
+    // std::cout << "laserCloudIn num is " << laserCloudIn.size() << std::endl;
+    pcl::removeNaNFromPointCloud(laserCloudIn, laserCloudIn, indices);//该函数并不会减小size
+    // std::cout << "new laserCloudIn num is " << laserCloudIn.size() << std::endl;
+    // Step 去除在Lidar坐标系原点MINIMUM_RANGE距离以内的点
+    // std::cout << "laserCloudIn num is " << laserCloudIn.size() << std::endl;
+    removeClosedPointCloud(laserCloudIn, laserCloudIn, MINIMUM_RANGE);///实验发现，距离小于0.3米的点相当多，接近一半的样子（上万个）
+    // std::cout << "new laserCloudIn num is " << laserCloudIn.size() << std::endl;
 
 
-    int cloudSize = laserCloudIn.points.size();
+    int cloudSize = laserCloudIn.points.size();//当前帧点云点数
     float startOri = -atan2(laserCloudIn.points[0].y, laserCloudIn.points[0].x);
     float endOri = -atan2(laserCloudIn.points[cloudSize - 1].y,
                           laserCloudIn.points[cloudSize - 1].x) +
@@ -156,20 +181,21 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr &laserCloudMsg)
 
     bool halfPassed = false;
     int count = cloudSize;
-    PointType point;
+    PointType point;//正在处理的点云中的某点
     std::vector<pcl::PointCloud<PointType>> laserCloudScans(N_SCANS);
     for (int i = 0; i < cloudSize; i++)
     {
-        point.x = laserCloudIn.points[i].x;
+        point.x = laserCloudIn.points[i].x;//此时雷达坐标系是前左上
         point.y = laserCloudIn.points[i].y;
         point.z = laserCloudIn.points[i].z;
 
-        float angle = atan(point.z / sqrt(point.x * point.x + point.y * point.y)) * 180 / M_PI;
+        float angle = atan(point.z / sqrt(point.x * point.x + point.y * point.y)) * 180 / M_PI;//该点的仰角
         int scanID = 0;
 
         if (N_SCANS == 16)
         {
-            scanID = int((angle + 15) / 2 + 0.5);
+            scanID = int((angle + 15) / 2 + 0.5);//角度应该约为-15° -13°……，所以这里先加15转为正数，然后除以二就得到了0-15共16个索引
+            //但这样有个问题是原本连续的线序，不再连续了
             if (scanID > (N_SCANS - 1) || scanID < 0)
             {
                 count--;
@@ -206,7 +232,7 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr &laserCloudMsg)
         }
         //printf("angle %f scanID %d \n", angle, scanID);
 
-        float ori = -atan2(point.y, point.x);
+        float ori = -atan2(point.y, point.x);//当前点水平面角度
         if (!halfPassed)
         { 
             if (ori < startOri - M_PI / 2)
@@ -237,22 +263,23 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr &laserCloudMsg)
         }
 
         float relTime = (ori - startOri) / (endOri - startOri);
-        point.intensity = scanID + scanPeriod * relTime;
+        point.intensity = scanID + scanPeriod * relTime;//赋值intensity为线号+局部时间戳
         laserCloudScans[scanID].push_back(point); 
     }
     
     cloudSize = count;
     printf("points size %d \n", cloudSize);
 
-    pcl::PointCloud<PointType>::Ptr laserCloud(new pcl::PointCloud<PointType>());
+    pcl::PointCloud<PointType>::Ptr laserCloud(new pcl::PointCloud<PointType>());//一维索引存储的当前帧点云
+    // Step 记录各线扫描的起始和终止索引
     for (int i = 0; i < N_SCANS; i++)
     { 
         scanStartInd[i] = laserCloud->size() + 5;// 记录每个scan的开始index，忽略前5个点
-        *laserCloud += laserCloudScans[i];
+        *laserCloud += laserCloudScans[i];//重载了运算符，更新PointCloud类型
         scanEndInd[i] = laserCloud->size() - 6;// 记录每个scan的结束index，忽略后5个点，开始和结束处的点云scan容易产生不闭合的“接缝”，对提取edge feature不利
     }
 
-    printf("prepare time %f \n", t_prepare.toc());
+    // printf("prepare time %f \n", t_prepare.toc());
 
     for (int i = 5; i < cloudSize - 5; i++)
     { 
@@ -275,27 +302,28 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr &laserCloudMsg)
     pcl::PointCloud<PointType> cornerPointsSharp;
     pcl::PointCloud<PointType> cornerPointsLessSharp;
     pcl::PointCloud<PointType> surfPointsFlat;
-    pcl::PointCloud<PointType> surfPointsLessFlat;
+    pcl::PointCloud<PointType> surfPointsLessFlat;//降采样后的较多平面点
 
     float t_q_sort = 0;
     for (int i = 0; i < N_SCANS; i++)// 按照scan的顺序提取4种特征点
     {
         if( scanEndInd[i] - scanStartInd[i] < 6)// 如果该scan的点数少于7个点，就跳过
             continue;
-        pcl::PointCloud<PointType>::Ptr surfPointsLessFlatScan(new pcl::PointCloud<PointType>);
+        pcl::PointCloud<PointType>::Ptr surfPointsLessFlatScan(new pcl::PointCloud<PointType>);//降采样之前的较多平面点
         for (int j = 0; j < 6; j++)// 将该scan分成6小段执行特征检测
         {
+            ///取出各扫描线的首尾，防止在交界处提取特征
             int sp = scanStartInd[i] + (scanEndInd[i] - scanStartInd[i]) * j / 6;// subscan的起始index
             int ep = scanStartInd[i] + (scanEndInd[i] - scanStartInd[i]) * (j + 1) / 6 - 1;// subscan的结束index
 
             TicToc t_tmp;
-            std::sort (cloudSortInd + sp, cloudSortInd + ep + 1, comp);// 根据曲率有小到大对subscan的点进行sort
+            std::sort(cloudSortInd + sp, cloudSortInd + ep + 1, comp);// 根据曲率有小到大对subscan的点进行sort
             t_q_sort += t_tmp.toc();
 
             int largestPickedNum = 0;
             for (int k = ep; k >= sp; k--)// 从后往前，即从曲率大的点开始提取corner feature
             {
-                int ind = cloudSortInd[k]; 
+                int ind = cloudSortInd[k]; //正在遍历的点的索引
 
                 if (cloudNeighborPicked[ind] == 0 &&
                     cloudCurvature[ind] > 0.1)// 如果该点没有被选择过，并且曲率大于0.1
@@ -345,7 +373,7 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr &laserCloudMsg)
                         cloudNeighborPicked[ind + l] = 1;
                     }
                 }
-            }
+            }//至此完成边缘点和较多边缘点的提取
 
             // 提取surf平面feature，与上述类似，选取该subscan曲率最小的前4个点为surf_flat
             int smallestPickedNum = 0;
@@ -392,18 +420,18 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr &laserCloudMsg)
                         cloudNeighborPicked[ind + l] = 1;
                     }
                 }
-            }
+            }//至此完成平面点的提取
 
             
             // 其他的非corner特征点与surf_flat特征点一起组成surf_less_flat特征点
             for (int k = sp; k <= ep; k++)
             {
-                if (cloudLabel[k] <= 0)
+                if (cloudLabel[k] <= 0)//!注意，这里并没有考虑选取的点是否经过筛选，而是直接把所有非边缘点全部放进来了
                 {
                     surfPointsLessFlatScan->push_back(laserCloud->points[k]);
                 }
             }
-        }
+        }//至此完成分成6段的特征提取
 
         // 最后对该scan点云中提取的所有surf_less_flat特征点进行降采样，因为点太多了
         pcl::PointCloud<PointType> surfPointsLessFlatScanDS;
@@ -471,7 +499,7 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "scanRegistration");
     ros::NodeHandle nh;
 
-    nh.param<int>("scan_line", N_SCANS, 16);
+    nh.param<int>("scan_line", N_SCANS, 16);//将参数服务器中的scan_line赋值给N_SCANS，若参数服务器没有定义该变量，使用后边的默认值
 
     nh.param<double>("minimum_range", MINIMUM_RANGE, 0.1);
 

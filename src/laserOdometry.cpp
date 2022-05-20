@@ -77,14 +77,17 @@ double timeLaserCloudFullRes = 0;
 pcl::KdTreeFLANN<pcl::PointXYZI>::Ptr kdtreeCornerLast(new pcl::KdTreeFLANN<pcl::PointXYZI>());
 pcl::KdTreeFLANN<pcl::PointXYZI>::Ptr kdtreeSurfLast(new pcl::KdTreeFLANN<pcl::PointXYZI>());
 
+//输入的一帧点云的各个特征数据
 pcl::PointCloud<PointType>::Ptr cornerPointsSharp(new pcl::PointCloud<PointType>());
 pcl::PointCloud<PointType>::Ptr cornerPointsLessSharp(new pcl::PointCloud<PointType>());
 pcl::PointCloud<PointType>::Ptr surfPointsFlat(new pcl::PointCloud<PointType>());
 pcl::PointCloud<PointType>::Ptr surfPointsLessFlat(new pcl::PointCloud<PointType>());
+pcl::PointCloud<PointType>::Ptr laserCloudFullRes(new pcl::PointCloud<PointType>());
 
+//上一次的
 pcl::PointCloud<PointType>::Ptr laserCloudCornerLast(new pcl::PointCloud<PointType>());
 pcl::PointCloud<PointType>::Ptr laserCloudSurfLast(new pcl::PointCloud<PointType>());
-pcl::PointCloud<PointType>::Ptr laserCloudFullRes(new pcl::PointCloud<PointType>());
+
 
 int laserCloudCornerLastNum = 0;
 int laserCloudSurfLastNum = 0;
@@ -101,11 +104,11 @@ double para_t[3] = {0, 0, 0};
 Eigen::Map<Eigen::Quaterniond> q_last_curr(para_q);
 Eigen::Map<Eigen::Vector3d> t_last_curr(para_t);
 
-std::queue<sensor_msgs::PointCloud2ConstPtr> cornerSharpBuf;
-std::queue<sensor_msgs::PointCloud2ConstPtr> cornerLessSharpBuf;
-std::queue<sensor_msgs::PointCloud2ConstPtr> surfFlatBuf;
-std::queue<sensor_msgs::PointCloud2ConstPtr> surfLessFlatBuf;
-std::queue<sensor_msgs::PointCloud2ConstPtr> fullPointsBuf;
+std::queue<sensor_msgs::PointCloud2ConstPtr> cornerSharpBuf;//边缘点
+std::queue<sensor_msgs::PointCloud2ConstPtr> cornerLessSharpBuf;//较多边缘点
+std::queue<sensor_msgs::PointCloud2ConstPtr> surfFlatBuf;//平面点
+std::queue<sensor_msgs::PointCloud2ConstPtr> surfLessFlatBuf;//较多平面点
+std::queue<sensor_msgs::PointCloud2ConstPtr> fullPointsBuf;//全部点云
 std::mutex mBuf;
 
 // undistort lidar point
@@ -192,7 +195,7 @@ int main(int argc, char **argv)
     nh.param<int>("mapping_skip_frame", skipFrameNum, 2);
 
     printf("Mapping %d Hz \n", 10 / skipFrameNum);
-
+    //订阅5种点云数据
     ros::Subscriber subCornerPointsSharp = nh.subscribe<sensor_msgs::PointCloud2>("/laser_cloud_sharp", 100, laserCloudSharpHandler);
 
     ros::Subscriber subCornerPointsLessSharp = nh.subscribe<sensor_msgs::PointCloud2>("/laser_cloud_less_sharp", 100, laserCloudLessSharpHandler);
@@ -203,6 +206,7 @@ int main(int argc, char **argv)
 
     ros::Subscriber subLaserCloudFullRes = nh.subscribe<sensor_msgs::PointCloud2>("/velodyne_cloud_2", 100, laserCloudFullResHandler);
 
+    //发布一系列消息
     ros::Publisher pubLaserCloudCornerLast = nh.advertise<sensor_msgs::PointCloud2>("/laser_cloud_corner_last", 100);
 
     ros::Publisher pubLaserCloudSurfLast = nh.advertise<sensor_msgs::PointCloud2>("/laser_cloud_surf_last", 100);
@@ -231,7 +235,7 @@ int main(int argc, char **argv)
             timeSurfPointsFlat = surfFlatBuf.front()->header.stamp.toSec();
             timeSurfPointsLessFlat = surfLessFlatBuf.front()->header.stamp.toSec();
             timeLaserCloudFullRes = fullPointsBuf.front()->header.stamp.toSec();
-
+            //判断时间戳是否同步，不同步则ROS_BREAK()
             if (timeCornerPointsSharp != timeLaserCloudFullRes ||
                 timeCornerPointsLessSharp != timeLaserCloudFullRes ||
                 timeSurfPointsFlat != timeLaserCloudFullRes ||
@@ -240,7 +244,7 @@ int main(int argc, char **argv)
                 printf("unsync messeage!");
                 ROS_BREAK();
             }
-
+            //从buf中读取出一帧五种点云数据
             mBuf.lock();
             cornerPointsSharp->clear();
             pcl::fromROSMsg(*cornerSharpBuf.front(), *cornerPointsSharp);
@@ -264,9 +268,10 @@ int main(int argc, char **argv)
             mBuf.unlock();
 
             TicToc t_whole;
-            // initializing
+            // Step 初始化，特殊处理第一帧点云数据 initializing
+            //?初始化怎么直接就完成了？
             if (!systemInited)// 第一帧不进行匹配，仅仅将 cornerPointsLessSharp 保存至 laserCloudCornerLast
-                              //                       将 surfPointsLessFlat    保存至 laserCloudSurfLast
+                              //                     将 surfPointsLessFlat    保存至 laserCloudSurfLast
                               // 为下次匹配提供target
             {
                 systemInited = true;
@@ -282,7 +287,8 @@ int main(int argc, char **argv)
                 {
                     corner_correspondence = 0;
                     plane_correspondence = 0;
-
+                    
+                    ///Ceres上场！
                     //ceres::LossFunction *loss_function = NULL;
                     ceres::LossFunction *loss_function = new ceres::HuberLoss(0.1);
                     ceres::LocalParameterization *q_parameterization =
@@ -290,6 +296,7 @@ int main(int argc, char **argv)
                     ceres::Problem::Options problem_options;
 
                     ceres::Problem problem(problem_options);
+                    ///添加姿态（四元数）位置变换为参数块
                     problem.AddParameterBlock(para_q, 4, q_parameterization);
                     problem.AddParameterBlock(para_t, 3);
 

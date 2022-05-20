@@ -42,7 +42,7 @@
 
 typedef pcl::PointXYZI PointType;
 
-inline double rad2deg(double radians)
+inline double rad2deg(double radians)//inline表示内联函数，
 {
   return radians * 180.0 / M_PI;
 }
