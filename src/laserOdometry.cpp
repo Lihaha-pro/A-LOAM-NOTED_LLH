@@ -77,14 +77,14 @@ double timeLaserCloudFullRes = 0;
 pcl::KdTreeFLANN<pcl::PointXYZI>::Ptr kdtreeCornerLast(new pcl::KdTreeFLANN<pcl::PointXYZI>());
 pcl::KdTreeFLANN<pcl::PointXYZI>::Ptr kdtreeSurfLast(new pcl::KdTreeFLANN<pcl::PointXYZI>());
 
-//锟斤拷锟斤拷锟揭恢★拷锟斤拷频母锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟�
+//输入的一帧点云的各个特征数据
 pcl::PointCloud<PointType>::Ptr cornerPointsSharp(new pcl::PointCloud<PointType>());
 pcl::PointCloud<PointType>::Ptr cornerPointsLessSharp(new pcl::PointCloud<PointType>());
 pcl::PointCloud<PointType>::Ptr surfPointsFlat(new pcl::PointCloud<PointType>());
 pcl::PointCloud<PointType>::Ptr surfPointsLessFlat(new pcl::PointCloud<PointType>());
 pcl::PointCloud<PointType>::Ptr laserCloudFullRes(new pcl::PointCloud<PointType>());
 
-//锟斤拷一锟轿碉拷
+//上一次的
 pcl::PointCloud<PointType>::Ptr laserCloudCornerLast(new pcl::PointCloud<PointType>());
 pcl::PointCloud<PointType>::Ptr laserCloudSurfLast(new pcl::PointCloud<PointType>());
 
@@ -92,23 +92,23 @@ pcl::PointCloud<PointType>::Ptr laserCloudSurfLast(new pcl::PointCloud<PointType
 int laserCloudCornerLastNum = 0;
 int laserCloudSurfLastNum = 0;
 
-// Lidar Odometry锟竭程癸拷锟狡碉拷frame锟斤拷world锟斤拷锟斤拷系锟斤拷位锟斤拷P锟斤拷Transformation from current frame to world frame
+// Lidar Odometry线程估计的frame在world坐标系的位姿P，Transformation from current frame to world frame
 Eigen::Quaterniond q_w_curr(1, 0, 0, 0);
 Eigen::Vector3d t_w_curr(0, 0, 0);
 
-// 锟斤拷锟斤拷锟斤拷锟斤拷匹锟斤拷时锟斤拷锟脚伙拷锟斤拷锟斤拷
+// 点云特征匹配时的优化变量
 double para_q[4] = {0, 0, 0, 1};
 double para_t[3] = {0, 0, 0};
 
-// 锟斤拷锟斤拷锟�2锟斤拷锟街憋拷锟斤拷锟脚伙拷锟斤拷锟斤拷para_q锟斤拷para_t锟斤拷映锟戒：锟斤拷示锟斤拷锟斤拷锟斤拷锟斤拷world锟斤拷锟斤拷系锟铰碉拷位锟斤拷P之锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷P = P0.inverse() * P1
+// 下面的2个分别是优化变量para_q和para_t的映射：表示的是两个world坐标系下的位姿P之间的增量，例如△P = P0.inverse() * P1
 Eigen::Map<Eigen::Quaterniond> q_last_curr(para_q);
 Eigen::Map<Eigen::Vector3d> t_last_curr(para_t);
 
-std::queue<sensor_msgs::PointCloud2ConstPtr> cornerSharpBuf;//锟斤拷缘锟斤拷
-std::queue<sensor_msgs::PointCloud2ConstPtr> cornerLessSharpBuf;//锟较讹拷锟皆碉拷锟�
-std::queue<sensor_msgs::PointCloud2ConstPtr> surfFlatBuf;//平锟斤拷锟�
-std::queue<sensor_msgs::PointCloud2ConstPtr> surfLessFlatBuf;//锟较讹拷平锟斤拷锟�
-std::queue<sensor_msgs::PointCloud2ConstPtr> fullPointsBuf;//全锟斤拷锟斤拷锟斤拷
+std::queue<sensor_msgs::PointCloud2ConstPtr> cornerSharpBuf;//边缘点
+std::queue<sensor_msgs::PointCloud2ConstPtr> cornerLessSharpBuf;//较多边缘点
+std::queue<sensor_msgs::PointCloud2ConstPtr> surfFlatBuf;//平面点
+std::queue<sensor_msgs::PointCloud2ConstPtr> surfLessFlatBuf;//较多平面点
+std::queue<sensor_msgs::PointCloud2ConstPtr> fullPointsBuf;//全部点云
 std::mutex mBuf;
 
 // undistort lidar point
@@ -195,7 +195,7 @@ int main(int argc, char **argv)
     nh.param<int>("mapping_skip_frame", skipFrameNum, 2);
 
     printf("Mapping %d Hz \n", 10 / skipFrameNum);
-    //锟斤拷锟斤拷5锟街碉拷锟斤拷锟斤拷锟斤拷
+    //订阅5种点云数据
     ros::Subscriber subCornerPointsSharp = nh.subscribe<sensor_msgs::PointCloud2>("/laser_cloud_sharp", 100, laserCloudSharpHandler);
 
     ros::Subscriber subCornerPointsLessSharp = nh.subscribe<sensor_msgs::PointCloud2>("/laser_cloud_less_sharp", 100, laserCloudLessSharpHandler);
@@ -206,7 +206,7 @@ int main(int argc, char **argv)
 
     ros::Subscriber subLaserCloudFullRes = nh.subscribe<sensor_msgs::PointCloud2>("/velodyne_cloud_2", 100, laserCloudFullResHandler);
 
-    //锟斤拷锟斤拷一系锟斤拷锟斤拷息
+    //发布一系列消息
     ros::Publisher pubLaserCloudCornerLast = nh.advertise<sensor_msgs::PointCloud2>("/laser_cloud_corner_last", 100);
 
     ros::Publisher pubLaserCloudSurfLast = nh.advertise<sensor_msgs::PointCloud2>("/laser_cloud_surf_last", 100);
@@ -235,7 +235,7 @@ int main(int argc, char **argv)
             timeSurfPointsFlat = surfFlatBuf.front()->header.stamp.toSec();
             timeSurfPointsLessFlat = surfLessFlatBuf.front()->header.stamp.toSec();
             timeLaserCloudFullRes = fullPointsBuf.front()->header.stamp.toSec();
-            //锟叫讹拷时锟斤拷锟斤拷欠锟酵拷锟斤拷锟斤拷锟酵拷锟斤拷锟絉OS_BREAK()
+            //判断时间戳是否同步，不同步则ROS_BREAK()
             if (timeCornerPointsSharp != timeLaserCloudFullRes ||
                 timeCornerPointsLessSharp != timeLaserCloudFullRes ||
                 timeSurfPointsFlat != timeLaserCloudFullRes ||
@@ -244,7 +244,7 @@ int main(int argc, char **argv)
                 printf("unsync messeage!");
                 ROS_BREAK();
             }
-            //锟斤拷buf锟叫讹拷取锟斤拷一帧锟斤拷锟街碉拷锟斤拷锟斤拷锟斤拷
+            //从buf中读取出一帧五种点云数据
             mBuf.lock();
             cornerPointsSharp->clear();
             pcl::fromROSMsg(*cornerSharpBuf.front(), *cornerPointsSharp);
@@ -268,11 +268,11 @@ int main(int argc, char **argv)
             mBuf.unlock();
 
             TicToc t_whole;
-            // Step 锟斤拷始锟斤拷锟斤拷锟斤拷锟解处锟斤拷锟斤拷一帧锟斤拷锟斤拷锟斤拷锟斤拷 initializing
-            //?锟斤拷始锟斤拷锟斤拷么直锟接撅拷锟斤拷锟斤拷耍锟�
-            if (!systemInited)// 锟斤拷一帧锟斤拷锟斤拷锟斤拷匹锟戒，锟斤拷锟斤拷锟斤拷 cornerPointsLessSharp 锟斤拷锟斤拷锟斤拷 laserCloudCornerLast
-                              //                     锟斤拷 surfPointsLessFlat    锟斤拷锟斤拷锟斤拷 laserCloudSurfLast
-                              // 为锟铰达拷匹锟斤拷锟结供target
+            // Step 初始化，特殊处理第一帧点云数据 initializing
+            //?初始化怎么直接就完成了？
+            if (!systemInited)// 第一帧不进行匹配，仅仅将 cornerPointsLessSharp 保存至 laserCloudCornerLast
+                              //                     将 surfPointsLessFlat    保存至 laserCloudSurfLast
+                              // 为下次匹配提供target
             {
                 systemInited = true;
                 std::cout << "Initialization finished \n";
@@ -281,16 +281,16 @@ int main(int argc, char **argv)
             {
                 int cornerPointsSharpNum = cornerPointsSharp->points.size();
                 int surfPointsFlatNum = surfPointsFlat->points.size();
-                std::cout << "平面点个数为" << cornerPointsSharpNum << std::endl;
-                std::cout << "边缘点个数为" << surfPointsFlatNum << std::endl;
+                std::cout << "边缘点数为：" << cornerPointsSharpNum << std::endl;
+                std::cout << "平面点数为：" << surfPointsFlatNum << std::endl;
 
                 TicToc t_opt;
-                for (size_t opti_counter = 0; opti_counter < 2; ++opti_counter)// 锟姐到锟斤拷锟皆硷拷锟姐到锟斤拷锟絀CP锟斤拷锟斤拷锟斤拷2锟斤拷
+                for (size_t opti_counter = 0; opti_counter < 2; ++opti_counter)// 点到线以及点到面的ICP，迭代2次
                 {
                     corner_correspondence = 0;
                     plane_correspondence = 0;
                     
-                    ///Ceres锟较筹拷锟斤拷
+                    ///Ceres上场！
                     //ceres::LossFunction *loss_function = NULL;
                     ceres::LossFunction *loss_function = new ceres::HuberLoss(0.1);
                     ceres::LocalParameterization *q_parameterization =
@@ -298,7 +298,7 @@ int main(int argc, char **argv)
                     ceres::Problem::Options problem_options;
 
                     ceres::Problem problem(problem_options);
-                    ///锟斤拷锟斤拷锟斤拷态锟斤拷锟斤拷元锟斤拷锟斤拷位锟矫变换为锟斤拷锟斤拷锟斤拷
+                    ///添加姿态（四元数）位置变换为参数块
                     problem.AddParameterBlock(para_q, 4, q_parameterization);
                     problem.AddParameterBlock(para_t, 3);
 
@@ -307,25 +307,25 @@ int main(int argc, char **argv)
                     std::vector<float> pointSearchSqDis;
 
                     TicToc t_data;
-                    // 锟斤拷锟斤拷锟斤拷锟斤拷锟皆拷锟斤拷锟斤拷锟絚orner锟斤拷锟斤拷锟斤拷之锟斤拷锟斤拷锟斤拷锟絝ind correspondence for corner features
+                    // 基于最近邻原理建立corner特征点之间关联，find correspondence for corner features
                     for (int i = 0; i < cornerPointsSharpNum; ++i)
                     {
-                        TransformToStart(&(cornerPointsSharp->points[i]), &pointSel);// 锟斤拷锟斤拷前帧锟斤拷corner_sharp锟斤拷锟斤拷锟斤拷O_cur锟斤拷锟接碉拷前帧锟斤拷Lidar锟斤拷锟斤拷系锟铰变换锟斤拷锟斤拷一帧锟斤拷Lidar锟斤拷锟斤拷系锟铰ｏ拷锟斤拷为锟斤拷O锟斤拷注锟斤拷锟斤拷前锟斤拷牡锟絆_cur锟斤拷同锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷寻锟斤拷corner锟斤拷锟斤拷锟斤拷锟絚orrespondence
-                        kdtreeCornerLast->nearestKSearch(pointSel, 1, pointSearchInd, pointSearchSqDis);// kdtree锟叫的碉拷锟斤拷锟斤拷锟斤拷一帧锟斤拷corner_less_sharp锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷一帧
-                                                                                                        // 锟斤拷corner_less_sharp锟斤拷寻锟揭碉拷前帧corner_sharp锟斤拷锟斤拷锟斤拷O锟斤拷锟斤拷锟斤拷诘悖拷锟轿狝锟斤拷
+                        TransformToStart(&(cornerPointsSharp->points[i]), &pointSel);// 将当前帧的corner_sharp特征点O_cur，从当前帧的Lidar坐标系下变换到上一帧的Lidar坐标系下（记为点O，注意与前面的点O_cur不同），以利于寻找corner特征点的correspondence
+                        kdtreeCornerLast->nearestKSearch(pointSel, 1, pointSearchInd, pointSearchSqDis);// kdtree中的点云是上一帧的corner_less_sharp，所以这是在上一帧
+                                                                                                        // 的corner_less_sharp中寻找当前帧corner_sharp特征点O的最近邻点（记为A）
 
                         int closestPointInd = -1, minPointInd2 = -1;
-                        if (pointSearchSqDis[0] < DISTANCE_SQ_THRESHOLD)// 锟斤拷锟斤拷锟斤拷锟节碉拷corner锟斤拷锟斤拷锟斤拷之锟斤拷锟斤拷锟狡斤拷锟叫★拷锟斤拷锟街碉拷锟斤拷锟斤拷锟斤拷锟节碉拷A锟斤拷效
+                        if (pointSearchSqDis[0] < DISTANCE_SQ_THRESHOLD)// 如果最近邻的corner特征点之间距离平方小于阈值，则最近邻点A有效
                         {
                             closestPointInd = pointSearchInd[0];
                             int closestPointScanID = int(laserCloudCornerLast->points[closestPointInd].intensity);
 
                             double minPointSqDis2 = DISTANCE_SQ_THRESHOLD;
-                            // 寻锟揭碉拷O锟斤拷锟斤拷锟斤拷一锟斤拷锟斤拷锟斤拷诘牡悖拷锟轿拷锟紹锟斤拷 in the direction of increasing scan line
-                            for (int j = closestPointInd + 1; j < (int)laserCloudCornerLast->points.size(); ++j)// laserCloudCornerLast 锟斤拷锟斤拷锟斤拷一帧锟斤拷corner_less_sharp锟斤拷锟斤拷锟斤拷,锟斤拷锟斤拷锟斤拷取锟斤拷锟斤拷时锟斤拷
-                            {                                                                                   // 锟斤拷锟斤拷scan锟斤拷顺锟斤拷锟斤拷取锟侥ｏ拷锟斤拷锟斤拷laserCloudCornerLast锟叫的碉拷也锟角帮拷锟斤拷scanID锟斤拷锟斤拷锟斤拷顺锟斤拷锟脚碉拷
+                            // 寻找点O的另外一个最近邻的点（记为点B） in the direction of increasing scan line
+                            for (int j = closestPointInd + 1; j < (int)laserCloudCornerLast->points.size(); ++j)// laserCloudCornerLast 来自上一帧的corner_less_sharp特征点,由于提取特征时是
+                            {                                                                                   // 按照scan的顺序提取的，所以laserCloudCornerLast中的点也是按照scanID递增的顺序存放的
                                 // if in the same scan line, continue
-                                if (int(laserCloudCornerLast->points[j].intensity) <= closestPointScanID)// intensity锟斤拷锟斤拷锟斤拷锟街达拷诺锟斤拷锟絪canID
+                                if (int(laserCloudCornerLast->points[j].intensity) <= closestPointScanID)// intensity整数部分存放的是scanID
                                     continue;
 
                                 // if not in nearby scans, end the loop
@@ -339,7 +339,7 @@ int main(int argc, char **argv)
                                                     (laserCloudCornerLast->points[j].z - pointSel.z) *
                                                         (laserCloudCornerLast->points[j].z - pointSel.z);
 
-                                if (pointSqDis < minPointSqDis2)// 锟节讹拷锟斤拷锟斤拷锟斤拷诘锟斤拷锟叫�,锟斤拷锟斤拷锟铰碉拷B
+                                if (pointSqDis < minPointSqDis2)// 第二个最近邻点有效,，更新点B
                                 {
                                     // find nearer point
                                     minPointSqDis2 = pointSqDis;
@@ -347,7 +347,7 @@ int main(int argc, char **argv)
                                 }
                             }
 
-                            // 寻锟揭碉拷O锟斤拷锟斤拷锟斤拷一锟斤拷锟斤拷锟斤拷诘牡锟紹 in the direction of decreasing scan line
+                            // 寻找点O的另外一个最近邻的点B in the direction of decreasing scan line
                             for (int j = closestPointInd - 1; j >= 0; --j)
                             {
                                 // if in the same scan line, continue
@@ -365,7 +365,7 @@ int main(int argc, char **argv)
                                                     (laserCloudCornerLast->points[j].z - pointSel.z) *
                                                         (laserCloudCornerLast->points[j].z - pointSel.z);
 
-                                if (pointSqDis < minPointSqDis2)// 锟节讹拷锟斤拷锟斤拷锟斤拷诘锟斤拷锟叫э拷锟斤拷锟斤拷碌锟紹
+                                if (pointSqDis < minPointSqDis2)// 第二个最近邻点有效，更新点B
                                 {
                                     // find nearer point
                                     minPointSqDis2 = pointSqDis;
@@ -374,7 +374,7 @@ int main(int argc, char **argv)
                             }
                         }
                         if (minPointInd2 >= 0) // both closestPointInd and minPointInd2 is valid
-                        {                      // 锟斤拷锟斤拷锟斤拷锟斤拷O锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷诘锟紸锟斤拷B锟斤拷锟斤拷效
+                        {                      // 即特征点O的两个最近邻点A和B都有效
                             Eigen::Vector3d curr_point(cornerPointsSharp->points[i].x,
                                                        cornerPointsSharp->points[i].y,
                                                        cornerPointsSharp->points[i].z);
@@ -385,27 +385,27 @@ int main(int argc, char **argv)
                                                          laserCloudCornerLast->points[minPointInd2].y,
                                                          laserCloudCornerLast->points[minPointInd2].z);
 
-                            double s;// 锟剿讹拷锟斤拷锟斤拷系锟斤拷锟斤拷kitti锟斤拷锟捷硷拷锟侥碉拷锟斤拷锟窖撅拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷s = 1.0
+                            double s;// 运动补偿系数，kitti数据集的点云已经被补偿过，所以s = 1.0
                             if (DISTORTION)
                                 s = (cornerPointsSharp->points[i].intensity - int(cornerPointsSharp->points[i].intensity)) / SCAN_PERIOD;
                             else
                                 s = 1.0;
-                            // 锟矫碉拷O锟斤拷A锟斤拷B锟斤拷锟斤拷愕斤拷叩木锟斤拷锟侥残诧拷锟筋，注锟斤拷锟斤拷锟斤拷锟斤拷锟姐都锟斤拷锟斤拷锟斤拷一帧锟斤拷Lidar锟斤拷锟斤拷系锟铰ｏ拷锟斤拷锟斤拷锟叫诧拷 = 锟斤拷O锟斤拷直锟斤拷AB锟侥撅拷锟斤拷
-                            // 锟斤拷锟藉到锟斤拷锟斤拷lidarFactor.cpp时锟斤拷说锟斤拷锟矫残诧拷木锟斤拷锟斤拷锟姐方锟斤拷
+                            // 用点O，A，B构造点到线的距离的残差项，注意这三个点都是在上一帧的Lidar坐标系下，即，残差 = 点O到直线AB的距离
+                            // 具体到介绍lidarFactor.cpp时再说明该残差的具体计算方法
                             ceres::CostFunction *cost_function = LidarEdgeFactor::Create(curr_point, last_point_a, last_point_b, s);
                             problem.AddResidualBlock(cost_function, loss_function, para_q, para_t);
                             corner_correspondence++;
                         }
                     }
-                    // 锟斤拷锟斤拷说锟侥碉拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟酵�
-                    // 锟斤拷锟斤拷锟斤拷慕锟斤拷锟絚orner锟斤拷锟斤拷锟斤拷之锟斤拷墓锟斤拷锟斤拷锟斤拷疲锟窖帮拷锟狡斤拷锟斤拷锟斤拷锟斤拷锟絆锟斤拷锟斤拷锟斤拷诘锟紸BC锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟皆拷锟斤拷锟斤拷锟絪urf锟斤拷锟斤拷锟斤拷之锟斤拷墓锟斤拷锟斤拷锟絝ind correspondence for plane features
+                    // 下面说的点符号与上述相同
+                    // 与上面的建立corner特征点之间的关联类似，寻找平面特征点O的最近邻点ABC，即基于最近邻原理建立surf特征点之间的关联，find correspondence for plane features
                     for (int i = 0; i < surfPointsFlatNum; ++i)
                     {
                         TransformToStart(&(surfPointsFlat->points[i]), &pointSel);
                         kdtreeSurfLast->nearestKSearch(pointSel, 1, pointSearchInd, pointSearchSqDis);
 
                         int closestPointInd = -1, minPointInd2 = -1, minPointInd3 = -1;
-                        if (pointSearchSqDis[0] < DISTANCE_SQ_THRESHOLD)// 锟揭碉拷锟斤拷锟斤拷锟斤拷诘锟紸锟斤拷效
+                        if (pointSearchSqDis[0] < DISTANCE_SQ_THRESHOLD)// 找到的最近邻点A有效
                         {
                             closestPointInd = pointSearchInd[0];
 
@@ -430,13 +430,13 @@ int main(int argc, char **argv)
                                 // if in the same or lower scan line
                                 if (int(laserCloudSurfLast->points[j].intensity) <= closestPointScanID && pointSqDis < minPointSqDis2)
                                 {
-                                    minPointSqDis2 = pointSqDis;// 锟揭碉拷锟侥碉拷2锟斤拷锟斤拷锟斤拷诘锟斤拷锟叫э拷锟斤拷锟斤拷碌锟紹锟斤拷注锟斤拷锟斤拷锟絪canID准确锟侥伙拷锟斤拷一锟斤拷锟紸锟酵碉拷B锟斤拷scanID锟斤拷同
+                                    minPointSqDis2 = pointSqDis;// 找到的第2个最近邻点有效，更新点B，注意如果scanID准确的话，一般点A和点B的scanID相同
                                     minPointInd2 = j;
                                 }
                                 // if in the higher scan line
                                 else if (int(laserCloudSurfLast->points[j].intensity) > closestPointScanID && pointSqDis < minPointSqDis3)
                                 {
-                                    minPointSqDis3 = pointSqDis;// 锟揭碉拷锟侥碉拷3锟斤拷锟斤拷锟斤拷诘锟斤拷锟叫э拷锟斤拷锟斤拷碌锟紺锟斤拷注锟斤拷锟斤拷锟絪canID准确锟侥伙拷锟斤拷一锟斤拷锟紸锟酵碉拷B锟斤拷scanID锟斤拷同,锟斤拷锟斤拷锟紺锟斤拷scanID锟斤拷同锟斤拷锟斤拷LOAM锟斤拷paper锟斤拷锟斤拷一锟斤拷
+                                    minPointSqDis3 = pointSqDis;// 找到的第3个最近邻点有效，更新点C，注意如果scanID准确的话，一般点A和点B的scanID相同,且与点C的scanID不同，与LOAM的paper叙述一致
                                     minPointInd3 = j;
                                 }
                             }
@@ -469,7 +469,7 @@ int main(int argc, char **argv)
                                 }
                             }
 
-                            if (minPointInd2 >= 0 && minPointInd3 >= 0)// 锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟节点都锟斤拷效
+                            if (minPointInd2 >= 0 && minPointInd3 >= 0)// 如果三个最近邻点都有效
                             {
 
                                 Eigen::Vector3d curr_point(surfPointsFlat->points[i].x,
@@ -490,8 +490,8 @@ int main(int argc, char **argv)
                                     s = (surfPointsFlat->points[i].intensity - int(surfPointsFlat->points[i].intensity)) / SCAN_PERIOD;
                                 else
                                     s = 1.0;
-                                // 锟矫碉拷O锟斤拷A锟斤拷B锟斤拷C锟斤拷锟斤拷愕斤拷锟侥撅拷锟斤拷牟胁锟斤拷睿拷锟斤拷锟斤拷锟斤拷锟斤拷愣硷拷锟斤拷锟斤拷锟揭恢★拷锟絃idar锟斤拷锟斤拷系锟铰ｏ拷锟斤拷锟斤拷锟叫诧拷 = 锟斤拷O锟斤拷平锟斤拷ABC锟侥撅拷锟斤拷
-                                // 同锟斤拷锟侥ｏ拷锟斤拷锟藉到锟斤拷锟斤拷lidarFactor.cpp时锟斤拷说锟斤拷锟矫残诧拷木锟斤拷锟斤拷锟姐方锟斤拷
+                                // 用点O，A，B，C构造点到面的距离的残差项，注意这三个点都是在上一帧的Lidar坐标系下，即，残差 = 点O到平面ABC的距离
+                                // 同样的，具体到介绍lidarFactor.cpp时再说明该残差的具体计算方法
                                 ceres::CostFunction *cost_function = LidarPlaneFactor::Create(curr_point, last_point_a, last_point_b, last_point_c, s);
                                 problem.AddResidualBlock(cost_function, loss_function, para_q, para_t);
                                 plane_correspondence++;
@@ -512,13 +512,13 @@ int main(int argc, char **argv)
                     options.max_num_iterations = 4;
                     options.minimizer_progress_to_stdout = false;
                     ceres::Solver::Summary summary;
-                    // 锟斤拷锟节癸拷锟斤拷锟斤拷锟斤拷锟叫残诧拷锟筋，锟斤拷锟斤拷锟斤拷诺牡锟角爸∥伙拷锟斤拷锟斤拷锟揭恢∥伙拷说锟轿伙拷锟斤拷锟斤拷锟斤拷锟絧ara_q锟斤拷para_t
+                    // 基于构建的所有残差项，求解最优的当前帧位姿与上一帧位姿的位姿增量：para_q和para_t
                     ceres::Solve(options, &problem, &summary);
                     printf("solver time %f ms \n", t_solver.toc());
                 }
                 printf("optimization twice time %f \n", t_opt.toc());
 
-                // 锟斤拷锟斤拷锟铰硷拷锟斤拷锟斤拷锟轿伙拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟揭恢★拷锟轿伙拷耍锟斤拷玫锟斤拷锟角爸★拷锟轿伙拷耍锟阶拷锟斤拷锟斤拷锟剿碉拷锟轿伙拷硕锟街革拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟较碉拷碌锟轿伙拷锟�
+                // 用最新计算出的位姿增量，更新上一帧的位姿，得到当前帧的位姿，注意这里说的位姿都指的是世界坐标系下的位姿
                 t_w_curr = t_w_curr + q_w_curr * t_last_curr;
                 q_w_curr = q_w_curr * q_last_curr;
             }
@@ -582,7 +582,7 @@ int main(int argc, char **argv)
 
             // std::cout << "the size of corner last is " << laserCloudCornerLastNum << ", and the size of surf last is " << laserCloudSurfLastNum << '\n';
 
-            kdtreeCornerLast->setInputCloud(laserCloudCornerLast);// 锟斤拷锟斤拷kdtree锟侥碉拷锟斤拷
+            kdtreeCornerLast->setInputCloud(laserCloudCornerLast);// 更新kdtree的点云
             kdtreeSurfLast->setInputCloud(laserCloudSurfLast);
 
             if (frameCount % skipFrameNum == 0)
