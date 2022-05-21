@@ -77,14 +77,14 @@ double timeLaserCloudFullRes = 0;
 pcl::KdTreeFLANN<pcl::PointXYZI>::Ptr kdtreeCornerLast(new pcl::KdTreeFLANN<pcl::PointXYZI>());
 pcl::KdTreeFLANN<pcl::PointXYZI>::Ptr kdtreeSurfLast(new pcl::KdTreeFLANN<pcl::PointXYZI>());
 
-//�����һ֡���Ƶĸ�����������
+//锟斤拷锟斤拷锟揭恢★拷锟斤拷频母锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟�
 pcl::PointCloud<PointType>::Ptr cornerPointsSharp(new pcl::PointCloud<PointType>());
 pcl::PointCloud<PointType>::Ptr cornerPointsLessSharp(new pcl::PointCloud<PointType>());
 pcl::PointCloud<PointType>::Ptr surfPointsFlat(new pcl::PointCloud<PointType>());
 pcl::PointCloud<PointType>::Ptr surfPointsLessFlat(new pcl::PointCloud<PointType>());
 pcl::PointCloud<PointType>::Ptr laserCloudFullRes(new pcl::PointCloud<PointType>());
 
-//��һ�ε�
+//锟斤拷一锟轿碉拷
 pcl::PointCloud<PointType>::Ptr laserCloudCornerLast(new pcl::PointCloud<PointType>());
 pcl::PointCloud<PointType>::Ptr laserCloudSurfLast(new pcl::PointCloud<PointType>());
 
@@ -92,23 +92,23 @@ pcl::PointCloud<PointType>::Ptr laserCloudSurfLast(new pcl::PointCloud<PointType
 int laserCloudCornerLastNum = 0;
 int laserCloudSurfLastNum = 0;
 
-// Lidar Odometry�̹߳��Ƶ�frame��world����ϵ��λ��P��Transformation from current frame to world frame
+// Lidar Odometry锟竭程癸拷锟狡碉拷frame锟斤拷world锟斤拷锟斤拷系锟斤拷位锟斤拷P锟斤拷Transformation from current frame to world frame
 Eigen::Quaterniond q_w_curr(1, 0, 0, 0);
 Eigen::Vector3d t_w_curr(0, 0, 0);
 
-// ��������ƥ��ʱ���Ż�����
+// 锟斤拷锟斤拷锟斤拷锟斤拷匹锟斤拷时锟斤拷锟脚伙拷锟斤拷锟斤拷
 double para_q[4] = {0, 0, 0, 1};
 double para_t[3] = {0, 0, 0};
 
-// �����2���ֱ����Ż�����para_q��para_t��ӳ�䣺��ʾ��������world����ϵ�µ�λ��P֮��������������P = P0.inverse() * P1
+// 锟斤拷锟斤拷锟�2锟斤拷锟街憋拷锟斤拷锟脚伙拷锟斤拷锟斤拷para_q锟斤拷para_t锟斤拷映锟戒：锟斤拷示锟斤拷锟斤拷锟斤拷锟斤拷world锟斤拷锟斤拷系锟铰碉拷位锟斤拷P之锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷P = P0.inverse() * P1
 Eigen::Map<Eigen::Quaterniond> q_last_curr(para_q);
 Eigen::Map<Eigen::Vector3d> t_last_curr(para_t);
 
-std::queue<sensor_msgs::PointCloud2ConstPtr> cornerSharpBuf;//��Ե��
-std::queue<sensor_msgs::PointCloud2ConstPtr> cornerLessSharpBuf;//�϶��Ե��
-std::queue<sensor_msgs::PointCloud2ConstPtr> surfFlatBuf;//ƽ���
-std::queue<sensor_msgs::PointCloud2ConstPtr> surfLessFlatBuf;//�϶�ƽ���
-std::queue<sensor_msgs::PointCloud2ConstPtr> fullPointsBuf;//ȫ������
+std::queue<sensor_msgs::PointCloud2ConstPtr> cornerSharpBuf;//锟斤拷缘锟斤拷
+std::queue<sensor_msgs::PointCloud2ConstPtr> cornerLessSharpBuf;//锟较讹拷锟皆碉拷锟�
+std::queue<sensor_msgs::PointCloud2ConstPtr> surfFlatBuf;//平锟斤拷锟�
+std::queue<sensor_msgs::PointCloud2ConstPtr> surfLessFlatBuf;//锟较讹拷平锟斤拷锟�
+std::queue<sensor_msgs::PointCloud2ConstPtr> fullPointsBuf;//全锟斤拷锟斤拷锟斤拷
 std::mutex mBuf;
 
 // undistort lidar point
@@ -195,7 +195,7 @@ int main(int argc, char **argv)
     nh.param<int>("mapping_skip_frame", skipFrameNum, 2);
 
     printf("Mapping %d Hz \n", 10 / skipFrameNum);
-    //����5�ֵ�������
+    //锟斤拷锟斤拷5锟街碉拷锟斤拷锟斤拷锟斤拷
     ros::Subscriber subCornerPointsSharp = nh.subscribe<sensor_msgs::PointCloud2>("/laser_cloud_sharp", 100, laserCloudSharpHandler);
 
     ros::Subscriber subCornerPointsLessSharp = nh.subscribe<sensor_msgs::PointCloud2>("/laser_cloud_less_sharp", 100, laserCloudLessSharpHandler);
@@ -206,7 +206,7 @@ int main(int argc, char **argv)
 
     ros::Subscriber subLaserCloudFullRes = nh.subscribe<sensor_msgs::PointCloud2>("/velodyne_cloud_2", 100, laserCloudFullResHandler);
 
-    //����һϵ����Ϣ
+    //锟斤拷锟斤拷一系锟斤拷锟斤拷息
     ros::Publisher pubLaserCloudCornerLast = nh.advertise<sensor_msgs::PointCloud2>("/laser_cloud_corner_last", 100);
 
     ros::Publisher pubLaserCloudSurfLast = nh.advertise<sensor_msgs::PointCloud2>("/laser_cloud_surf_last", 100);
@@ -235,7 +235,7 @@ int main(int argc, char **argv)
             timeSurfPointsFlat = surfFlatBuf.front()->header.stamp.toSec();
             timeSurfPointsLessFlat = surfLessFlatBuf.front()->header.stamp.toSec();
             timeLaserCloudFullRes = fullPointsBuf.front()->header.stamp.toSec();
-            //�ж�ʱ����Ƿ�ͬ������ͬ����ROS_BREAK()
+            //锟叫讹拷时锟斤拷锟斤拷欠锟酵拷锟斤拷锟斤拷锟酵拷锟斤拷锟絉OS_BREAK()
             if (timeCornerPointsSharp != timeLaserCloudFullRes ||
                 timeCornerPointsLessSharp != timeLaserCloudFullRes ||
                 timeSurfPointsFlat != timeLaserCloudFullRes ||
@@ -244,7 +244,7 @@ int main(int argc, char **argv)
                 printf("unsync messeage!");
                 ROS_BREAK();
             }
-            //��buf�ж�ȡ��һ֡���ֵ�������
+            //锟斤拷buf锟叫讹拷取锟斤拷一帧锟斤拷锟街碉拷锟斤拷锟斤拷锟斤拷
             mBuf.lock();
             cornerPointsSharp->clear();
             pcl::fromROSMsg(*cornerSharpBuf.front(), *cornerPointsSharp);
@@ -268,11 +268,11 @@ int main(int argc, char **argv)
             mBuf.unlock();
 
             TicToc t_whole;
-            // Step ��ʼ�������⴦����һ֡�������� initializing
-            //?��ʼ����ôֱ�Ӿ�����ˣ�
-            if (!systemInited)// ��һ֡������ƥ�䣬������ cornerPointsLessSharp ������ laserCloudCornerLast
-                              //                     �� surfPointsLessFlat    ������ laserCloudSurfLast
-                              // Ϊ�´�ƥ���ṩtarget
+            // Step 锟斤拷始锟斤拷锟斤拷锟斤拷锟解处锟斤拷锟斤拷一帧锟斤拷锟斤拷锟斤拷锟斤拷 initializing
+            //?锟斤拷始锟斤拷锟斤拷么直锟接撅拷锟斤拷锟斤拷耍锟�
+            if (!systemInited)// 锟斤拷一帧锟斤拷锟斤拷锟斤拷匹锟戒，锟斤拷锟斤拷锟斤拷 cornerPointsLessSharp 锟斤拷锟斤拷锟斤拷 laserCloudCornerLast
+                              //                     锟斤拷 surfPointsLessFlat    锟斤拷锟斤拷锟斤拷 laserCloudSurfLast
+                              // 为锟铰达拷匹锟斤拷锟结供target
             {
                 systemInited = true;
                 std::cout << "Initialization finished \n";
@@ -281,14 +281,16 @@ int main(int argc, char **argv)
             {
                 int cornerPointsSharpNum = cornerPointsSharp->points.size();
                 int surfPointsFlatNum = surfPointsFlat->points.size();
+                std::cout << "平面点个数为" << cornerPointsSharpNum << std::endl;
+                std::cout << "边缘点个数为" << surfPointsFlatNum << std::endl;
 
                 TicToc t_opt;
-                for (size_t opti_counter = 0; opti_counter < 2; ++opti_counter)// �㵽���Լ��㵽���ICP������2��
+                for (size_t opti_counter = 0; opti_counter < 2; ++opti_counter)// 锟姐到锟斤拷锟皆硷拷锟姐到锟斤拷锟絀CP锟斤拷锟斤拷锟斤拷2锟斤拷
                 {
                     corner_correspondence = 0;
                     plane_correspondence = 0;
                     
-                    ///Ceres�ϳ���
+                    ///Ceres锟较筹拷锟斤拷
                     //ceres::LossFunction *loss_function = NULL;
                     ceres::LossFunction *loss_function = new ceres::HuberLoss(0.1);
                     ceres::LocalParameterization *q_parameterization =
@@ -296,7 +298,7 @@ int main(int argc, char **argv)
                     ceres::Problem::Options problem_options;
 
                     ceres::Problem problem(problem_options);
-                    ///������̬����Ԫ����λ�ñ任Ϊ������
+                    ///锟斤拷锟斤拷锟斤拷态锟斤拷锟斤拷元锟斤拷锟斤拷位锟矫变换为锟斤拷锟斤拷锟斤拷
                     problem.AddParameterBlock(para_q, 4, q_parameterization);
                     problem.AddParameterBlock(para_t, 3);
 
@@ -305,25 +307,25 @@ int main(int argc, char **argv)
                     std::vector<float> pointSearchSqDis;
 
                     TicToc t_data;
-                    // ���������ԭ������corner������֮�������find correspondence for corner features
+                    // 锟斤拷锟斤拷锟斤拷锟斤拷锟皆拷锟斤拷锟斤拷锟絚orner锟斤拷锟斤拷锟斤拷之锟斤拷锟斤拷锟斤拷锟絝ind correspondence for corner features
                     for (int i = 0; i < cornerPointsSharpNum; ++i)
                     {
-                        TransformToStart(&(cornerPointsSharp->points[i]), &pointSel);// ����ǰ֡��corner_sharp������O_cur���ӵ�ǰ֡��Lidar����ϵ�±任����һ֡��Lidar����ϵ�£���Ϊ��O��ע����ǰ��ĵ�O_cur��ͬ����������Ѱ��corner�������correspondence
-                        kdtreeCornerLast->nearestKSearch(pointSel, 1, pointSearchInd, pointSearchSqDis);// kdtree�еĵ�������һ֡��corner_less_sharp��������������һ֡
-                                                                                                        // ��corner_less_sharp��Ѱ�ҵ�ǰ֡corner_sharp������O������ڵ㣨��ΪA��
+                        TransformToStart(&(cornerPointsSharp->points[i]), &pointSel);// 锟斤拷锟斤拷前帧锟斤拷corner_sharp锟斤拷锟斤拷锟斤拷O_cur锟斤拷锟接碉拷前帧锟斤拷Lidar锟斤拷锟斤拷系锟铰变换锟斤拷锟斤拷一帧锟斤拷Lidar锟斤拷锟斤拷系锟铰ｏ拷锟斤拷为锟斤拷O锟斤拷注锟斤拷锟斤拷前锟斤拷牡锟絆_cur锟斤拷同锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷寻锟斤拷corner锟斤拷锟斤拷锟斤拷锟絚orrespondence
+                        kdtreeCornerLast->nearestKSearch(pointSel, 1, pointSearchInd, pointSearchSqDis);// kdtree锟叫的碉拷锟斤拷锟斤拷锟斤拷一帧锟斤拷corner_less_sharp锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷一帧
+                                                                                                        // 锟斤拷corner_less_sharp锟斤拷寻锟揭碉拷前帧corner_sharp锟斤拷锟斤拷锟斤拷O锟斤拷锟斤拷锟斤拷诘悖拷锟轿狝锟斤拷
 
                         int closestPointInd = -1, minPointInd2 = -1;
-                        if (pointSearchSqDis[0] < DISTANCE_SQ_THRESHOLD)// �������ڵ�corner������֮�����ƽ��С����ֵ��������ڵ�A��Ч
+                        if (pointSearchSqDis[0] < DISTANCE_SQ_THRESHOLD)// 锟斤拷锟斤拷锟斤拷锟节碉拷corner锟斤拷锟斤拷锟斤拷之锟斤拷锟斤拷锟狡斤拷锟叫★拷锟斤拷锟街碉拷锟斤拷锟斤拷锟斤拷锟节碉拷A锟斤拷效
                         {
                             closestPointInd = pointSearchInd[0];
                             int closestPointScanID = int(laserCloudCornerLast->points[closestPointInd].intensity);
 
                             double minPointSqDis2 = DISTANCE_SQ_THRESHOLD;
-                            // Ѱ�ҵ�O������һ������ڵĵ㣨��Ϊ��B�� in the direction of increasing scan line
-                            for (int j = closestPointInd + 1; j < (int)laserCloudCornerLast->points.size(); ++j)// laserCloudCornerLast ������һ֡��corner_less_sharp������,������ȡ����ʱ��
-                            {                                                                                   // ����scan��˳����ȡ�ģ�����laserCloudCornerLast�еĵ�Ҳ�ǰ���scanID������˳���ŵ�
+                            // 寻锟揭碉拷O锟斤拷锟斤拷锟斤拷一锟斤拷锟斤拷锟斤拷诘牡悖拷锟轿拷锟紹锟斤拷 in the direction of increasing scan line
+                            for (int j = closestPointInd + 1; j < (int)laserCloudCornerLast->points.size(); ++j)// laserCloudCornerLast 锟斤拷锟斤拷锟斤拷一帧锟斤拷corner_less_sharp锟斤拷锟斤拷锟斤拷,锟斤拷锟斤拷锟斤拷取锟斤拷锟斤拷时锟斤拷
+                            {                                                                                   // 锟斤拷锟斤拷scan锟斤拷顺锟斤拷锟斤拷取锟侥ｏ拷锟斤拷锟斤拷laserCloudCornerLast锟叫的碉拷也锟角帮拷锟斤拷scanID锟斤拷锟斤拷锟斤拷顺锟斤拷锟脚碉拷
                                 // if in the same scan line, continue
-                                if (int(laserCloudCornerLast->points[j].intensity) <= closestPointScanID)// intensity�������ִ�ŵ���scanID
+                                if (int(laserCloudCornerLast->points[j].intensity) <= closestPointScanID)// intensity锟斤拷锟斤拷锟斤拷锟街达拷诺锟斤拷锟絪canID
                                     continue;
 
                                 // if not in nearby scans, end the loop
@@ -337,7 +339,7 @@ int main(int argc, char **argv)
                                                     (laserCloudCornerLast->points[j].z - pointSel.z) *
                                                         (laserCloudCornerLast->points[j].z - pointSel.z);
 
-                                if (pointSqDis < minPointSqDis2)// �ڶ�������ڵ���Ч,�����µ�B
+                                if (pointSqDis < minPointSqDis2)// 锟节讹拷锟斤拷锟斤拷锟斤拷诘锟斤拷锟叫�,锟斤拷锟斤拷锟铰碉拷B
                                 {
                                     // find nearer point
                                     minPointSqDis2 = pointSqDis;
@@ -345,7 +347,7 @@ int main(int argc, char **argv)
                                 }
                             }
 
-                            // Ѱ�ҵ�O������һ������ڵĵ�B in the direction of decreasing scan line
+                            // 寻锟揭碉拷O锟斤拷锟斤拷锟斤拷一锟斤拷锟斤拷锟斤拷诘牡锟紹 in the direction of decreasing scan line
                             for (int j = closestPointInd - 1; j >= 0; --j)
                             {
                                 // if in the same scan line, continue
@@ -363,7 +365,7 @@ int main(int argc, char **argv)
                                                     (laserCloudCornerLast->points[j].z - pointSel.z) *
                                                         (laserCloudCornerLast->points[j].z - pointSel.z);
 
-                                if (pointSqDis < minPointSqDis2)// �ڶ�������ڵ���Ч�����µ�B
+                                if (pointSqDis < minPointSqDis2)// 锟节讹拷锟斤拷锟斤拷锟斤拷诘锟斤拷锟叫э拷锟斤拷锟斤拷碌锟紹
                                 {
                                     // find nearer point
                                     minPointSqDis2 = pointSqDis;
@@ -372,7 +374,7 @@ int main(int argc, char **argv)
                             }
                         }
                         if (minPointInd2 >= 0) // both closestPointInd and minPointInd2 is valid
-                        {                      // ��������O����������ڵ�A��B����Ч
+                        {                      // 锟斤拷锟斤拷锟斤拷锟斤拷O锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷诘锟紸锟斤拷B锟斤拷锟斤拷效
                             Eigen::Vector3d curr_point(cornerPointsSharp->points[i].x,
                                                        cornerPointsSharp->points[i].y,
                                                        cornerPointsSharp->points[i].z);
@@ -383,27 +385,27 @@ int main(int argc, char **argv)
                                                          laserCloudCornerLast->points[minPointInd2].y,
                                                          laserCloudCornerLast->points[minPointInd2].z);
 
-                            double s;// �˶�����ϵ����kitti���ݼ��ĵ����Ѿ���������������s = 1.0
+                            double s;// 锟剿讹拷锟斤拷锟斤拷系锟斤拷锟斤拷kitti锟斤拷锟捷硷拷锟侥碉拷锟斤拷锟窖撅拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷s = 1.0
                             if (DISTORTION)
                                 s = (cornerPointsSharp->points[i].intensity - int(cornerPointsSharp->points[i].intensity)) / SCAN_PERIOD;
                             else
                                 s = 1.0;
-                            // �õ�O��A��B����㵽�ߵľ���Ĳв��ע���������㶼������һ֡��Lidar����ϵ�£������в� = ��O��ֱ��AB�ľ���
-                            // ���嵽����lidarFactor.cppʱ��˵���òв�ľ�����㷽��
+                            // 锟矫碉拷O锟斤拷A锟斤拷B锟斤拷锟斤拷愕斤拷叩木锟斤拷锟侥残诧拷锟筋，注锟斤拷锟斤拷锟斤拷锟斤拷锟姐都锟斤拷锟斤拷锟斤拷一帧锟斤拷Lidar锟斤拷锟斤拷系锟铰ｏ拷锟斤拷锟斤拷锟叫诧拷 = 锟斤拷O锟斤拷直锟斤拷AB锟侥撅拷锟斤拷
+                            // 锟斤拷锟藉到锟斤拷锟斤拷lidarFactor.cpp时锟斤拷说锟斤拷锟矫残诧拷木锟斤拷锟斤拷锟姐方锟斤拷
                             ceres::CostFunction *cost_function = LidarEdgeFactor::Create(curr_point, last_point_a, last_point_b, s);
                             problem.AddResidualBlock(cost_function, loss_function, para_q, para_t);
                             corner_correspondence++;
                         }
                     }
-                    // ����˵�ĵ������������ͬ
-                    // ������Ľ���corner������֮��Ĺ������ƣ�Ѱ��ƽ��������O������ڵ�ABC�������������ԭ������surf������֮��Ĺ�����find correspondence for plane features
+                    // 锟斤拷锟斤拷说锟侥碉拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟酵�
+                    // 锟斤拷锟斤拷锟斤拷慕锟斤拷锟絚orner锟斤拷锟斤拷锟斤拷之锟斤拷墓锟斤拷锟斤拷锟斤拷疲锟窖帮拷锟狡斤拷锟斤拷锟斤拷锟斤拷锟絆锟斤拷锟斤拷锟斤拷诘锟紸BC锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟皆拷锟斤拷锟斤拷锟絪urf锟斤拷锟斤拷锟斤拷之锟斤拷墓锟斤拷锟斤拷锟絝ind correspondence for plane features
                     for (int i = 0; i < surfPointsFlatNum; ++i)
                     {
                         TransformToStart(&(surfPointsFlat->points[i]), &pointSel);
                         kdtreeSurfLast->nearestKSearch(pointSel, 1, pointSearchInd, pointSearchSqDis);
 
                         int closestPointInd = -1, minPointInd2 = -1, minPointInd3 = -1;
-                        if (pointSearchSqDis[0] < DISTANCE_SQ_THRESHOLD)// �ҵ�������ڵ�A��Ч
+                        if (pointSearchSqDis[0] < DISTANCE_SQ_THRESHOLD)// 锟揭碉拷锟斤拷锟斤拷锟斤拷诘锟紸锟斤拷效
                         {
                             closestPointInd = pointSearchInd[0];
 
@@ -428,13 +430,13 @@ int main(int argc, char **argv)
                                 // if in the same or lower scan line
                                 if (int(laserCloudSurfLast->points[j].intensity) <= closestPointScanID && pointSqDis < minPointSqDis2)
                                 {
-                                    minPointSqDis2 = pointSqDis;// �ҵ��ĵ�2������ڵ���Ч�����µ�B��ע�����scanID׼ȷ�Ļ���һ���A�͵�B��scanID��ͬ
+                                    minPointSqDis2 = pointSqDis;// 锟揭碉拷锟侥碉拷2锟斤拷锟斤拷锟斤拷诘锟斤拷锟叫э拷锟斤拷锟斤拷碌锟紹锟斤拷注锟斤拷锟斤拷锟絪canID准确锟侥伙拷锟斤拷一锟斤拷锟紸锟酵碉拷B锟斤拷scanID锟斤拷同
                                     minPointInd2 = j;
                                 }
                                 // if in the higher scan line
                                 else if (int(laserCloudSurfLast->points[j].intensity) > closestPointScanID && pointSqDis < minPointSqDis3)
                                 {
-                                    minPointSqDis3 = pointSqDis;// �ҵ��ĵ�3������ڵ���Ч�����µ�C��ע�����scanID׼ȷ�Ļ���һ���A�͵�B��scanID��ͬ,�����C��scanID��ͬ����LOAM��paper����һ��
+                                    minPointSqDis3 = pointSqDis;// 锟揭碉拷锟侥碉拷3锟斤拷锟斤拷锟斤拷诘锟斤拷锟叫э拷锟斤拷锟斤拷碌锟紺锟斤拷注锟斤拷锟斤拷锟絪canID准确锟侥伙拷锟斤拷一锟斤拷锟紸锟酵碉拷B锟斤拷scanID锟斤拷同,锟斤拷锟斤拷锟紺锟斤拷scanID锟斤拷同锟斤拷锟斤拷LOAM锟斤拷paper锟斤拷锟斤拷一锟斤拷
                                     minPointInd3 = j;
                                 }
                             }
@@ -467,7 +469,7 @@ int main(int argc, char **argv)
                                 }
                             }
 
-                            if (minPointInd2 >= 0 && minPointInd3 >= 0)// �����������ڵ㶼��Ч
+                            if (minPointInd2 >= 0 && minPointInd3 >= 0)// 锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟节点都锟斤拷效
                             {
 
                                 Eigen::Vector3d curr_point(surfPointsFlat->points[i].x,
@@ -488,8 +490,8 @@ int main(int argc, char **argv)
                                     s = (surfPointsFlat->points[i].intensity - int(surfPointsFlat->points[i].intensity)) / SCAN_PERIOD;
                                 else
                                     s = 1.0;
-                                // �õ�O��A��B��C����㵽��ľ���Ĳв��ע���������㶼������һ֡��Lidar����ϵ�£������в� = ��O��ƽ��ABC�ľ���
-                                // ͬ���ģ����嵽����lidarFactor.cppʱ��˵���òв�ľ�����㷽��
+                                // 锟矫碉拷O锟斤拷A锟斤拷B锟斤拷C锟斤拷锟斤拷愕斤拷锟侥撅拷锟斤拷牟胁锟斤拷睿拷锟斤拷锟斤拷锟斤拷锟斤拷愣硷拷锟斤拷锟斤拷锟揭恢★拷锟絃idar锟斤拷锟斤拷系锟铰ｏ拷锟斤拷锟斤拷锟叫诧拷 = 锟斤拷O锟斤拷平锟斤拷ABC锟侥撅拷锟斤拷
+                                // 同锟斤拷锟侥ｏ拷锟斤拷锟藉到锟斤拷锟斤拷lidarFactor.cpp时锟斤拷说锟斤拷锟矫残诧拷木锟斤拷锟斤拷锟姐方锟斤拷
                                 ceres::CostFunction *cost_function = LidarPlaneFactor::Create(curr_point, last_point_a, last_point_b, last_point_c, s);
                                 problem.AddResidualBlock(cost_function, loss_function, para_q, para_t);
                                 plane_correspondence++;
@@ -510,13 +512,13 @@ int main(int argc, char **argv)
                     options.max_num_iterations = 4;
                     options.minimizer_progress_to_stdout = false;
                     ceres::Solver::Summary summary;
-                    // ���ڹ��������вв��������ŵĵ�ǰ֡λ������һ֡λ�˵�λ��������para_q��para_t
+                    // 锟斤拷锟节癸拷锟斤拷锟斤拷锟斤拷锟叫残诧拷锟筋，锟斤拷锟斤拷锟斤拷诺牡锟角爸∥伙拷锟斤拷锟斤拷锟揭恢∥伙拷说锟轿伙拷锟斤拷锟斤拷锟斤拷锟絧ara_q锟斤拷para_t
                     ceres::Solve(options, &problem, &summary);
                     printf("solver time %f ms \n", t_solver.toc());
                 }
                 printf("optimization twice time %f \n", t_opt.toc());
 
-                // �����¼������λ��������������һ֡��λ�ˣ��õ���ǰ֡��λ�ˣ�ע������˵��λ�˶�ָ������������ϵ�µ�λ��
+                // 锟斤拷锟斤拷锟铰硷拷锟斤拷锟斤拷锟轿伙拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟揭恢★拷锟轿伙拷耍锟斤拷玫锟斤拷锟角爸★拷锟轿伙拷耍锟阶拷锟斤拷锟斤拷锟剿碉拷锟轿伙拷硕锟街革拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟较碉拷碌锟轿伙拷锟�
                 t_w_curr = t_w_curr + q_w_curr * t_last_curr;
                 q_w_curr = q_w_curr * q_last_curr;
             }
@@ -580,7 +582,7 @@ int main(int argc, char **argv)
 
             // std::cout << "the size of corner last is " << laserCloudCornerLastNum << ", and the size of surf last is " << laserCloudSurfLastNum << '\n';
 
-            kdtreeCornerLast->setInputCloud(laserCloudCornerLast);// ����kdtree�ĵ���
+            kdtreeCornerLast->setInputCloud(laserCloudCornerLast);// 锟斤拷锟斤拷kdtree锟侥碉拷锟斤拷
             kdtreeSurfLast->setInputCloud(laserCloudSurfLast);
 
             if (frameCount % skipFrameNum == 0)
