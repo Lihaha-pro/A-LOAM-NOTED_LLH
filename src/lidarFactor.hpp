@@ -12,6 +12,14 @@
 // 点到线的残差距离计算
 struct LidarEdgeFactor
 {
+	/**
+	 * @brief Construct a new Lidar Edge Factor object
+	 * 
+	 * @param curr_point_ 
+	 * @param last_point_a_ 
+	 * @param last_point_b_ 
+	 * @param s_ 用于差值的比例因子
+	 */
 	LidarEdgeFactor(Eigen::Vector3d curr_point_, Eigen::Vector3d last_point_a_,
 					Eigen::Vector3d last_point_b_, double s_)
 		: curr_point(curr_point_), last_point_a(last_point_a_), last_point_b(last_point_b_), s(s_) {}
@@ -24,10 +32,10 @@ struct LidarEdgeFactor
 		Eigen::Matrix<T, 3, 1> lpb{T(last_point_b.x()), T(last_point_b.y()), T(last_point_b.z())};
 
 		//Eigen::Quaternion<T> q_last_curr{q[3], T(s) * q[0], T(s) * q[1], T(s) * q[2]};
-		Eigen::Quaternion<T> q_last_curr{q[3], q[0], q[1], q[2]};
-		Eigen::Quaternion<T> q_identity{T(1), T(0), T(0), T(0)};
+		Eigen::Quaternion<T> q_last_curr{q[3], q[0], q[1], q[2]};//Eigen库四元数实部在前
+		Eigen::Quaternion<T> q_identity{T(1), T(0), T(0), T(0)};//初始化为单位四元数，用于之后插值
 		// 考虑运动补偿，ktti点云已经补偿过所以可以忽略下面的对四元数slerp插值以及对平移的线性插值
-		q_last_curr = q_identity.slerp(T(s), q_last_curr);
+		q_last_curr = q_identity.slerp(T(s), q_last_curr);//得到了当前点校正到初始点坐标系下的旋转四元数
 		Eigen::Matrix<T, 3, 1> t_last_curr{T(s) * t[0], T(s) * t[1], T(s) * t[2]};
 
 		Eigen::Matrix<T, 3, 1> lp;
@@ -36,7 +44,7 @@ struct LidarEdgeFactor
 		lp = q_last_curr * cp + t_last_curr;
 
 		// 点到线的计算如下图所示
-		Eigen::Matrix<T, 3, 1> nu = (lp - lpa).cross(lp - lpb);
+		Eigen::Matrix<T, 3, 1> nu = (lp - lpa).cross(lp - lpb);//叉乘
 		Eigen::Matrix<T, 3, 1> de = lpa - lpb;
 
 		// 最终的残差本来应该是residual[0] = nu.norm() / de.norm(); 为啥也分成3个，我也不知
@@ -57,9 +65,9 @@ struct LidarEdgeFactor
 //					             ^  ^  ^
 //					             |  |  |
 //			      残差的维度 ____|  |  |
-//			 优化变量q的维度 _______|  |
-//			 优化变量t的维度 __________|
-			new LidarEdgeFactor(curr_point_, last_point_a_, last_point_b_, s_)));
+//		    优化变量q的维度 _______|  |
+//		    优化变量t的维度 _________|
+			new LidarEdgeFactor(curr_point_, last_point_a_, last_point_b_, s_)));///该句用传入的三个点坐标和时间比例，初始化了类对象LidarEdgeFactor，传入参数初始化了四个成员变量
 	}
 
 	Eigen::Vector3d curr_point, last_point_a, last_point_b;
