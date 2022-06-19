@@ -24,10 +24,10 @@
 
 std::vector<float> read_lidar_data(const std::string lidar_data_path)
 {
-    std::ifstream lidar_data_file(lidar_data_path, std::ifstream::in | std::ifstream::binary);
-    lidar_data_file.seekg(0, std::ios::end);
-    const size_t num_elements = lidar_data_file.tellg() / sizeof(float);
-    lidar_data_file.seekg(0, std::ios::beg);
+    std::ifstream lidar_data_file(lidar_data_path, std::ifstream::in | std::ifstream::binary);//输入文件流
+    lidar_data_file.seekg(0, std::ios::end);//文件指针指向文件末尾
+    const size_t num_elements = lidar_data_file.tellg() / sizeof(float);//统计有多少个float数据
+    lidar_data_file.seekg(0, std::ios::beg);//再把指针指向文件开始
 
     std::vector<float> lidar_data_buffer(num_elements);
     lidar_data_file.read(reinterpret_cast<char*>(&lidar_data_buffer[0]), num_elements*sizeof(float));
@@ -42,7 +42,7 @@ int main(int argc, char** argv)
     n.getParam("dataset_folder", dataset_folder);
     n.getParam("sequence_number", sequence_number);
     std::cout << "Reading sequence " << sequence_number << " from " << dataset_folder << '\n';
-    bool to_bag;
+    bool to_bag;//是否转成ros包（方便以后可以直接播包而不用重复调用该节点）
     n.getParam("to_bag", to_bag);
     if (to_bag)
         n.getParam("output_bag_file", output_bag_file);
@@ -56,7 +56,7 @@ int main(int argc, char** argv)
     image_transport::Publisher pub_image_left = it.advertise("/image_left", 2);
     image_transport::Publisher pub_image_right = it.advertise("/image_right", 2);
 
-    ros::Publisher pubOdomGT = n.advertise<nav_msgs::Odometry> ("/odometry_gt", 5);
+    ros::Publisher pubOdomGT = n.advertise<nav_msgs::Odometry> ("/odometry_gt", 5);//真值
     nav_msgs::Odometry odomGT;
     odomGT.header.frame_id = "/camera_init";
     odomGT.child_frame_id = "/ground_truth";
@@ -83,6 +83,7 @@ int main(int argc, char** argv)
     std::size_t line_num = 0;
 
     ros::Rate r(10.0 / publish_delay);
+    //遍历时间戳文本文件
     while (std::getline(timestamp_file, line) && ros::ok())
     {
         float timestamp = stof(line);
@@ -91,59 +92,60 @@ int main(int argc, char** argv)
         cv::Mat left_image = cv::imread(left_image_path.str(), CV_LOAD_IMAGE_GRAYSCALE);
         right_image_path << dataset_folder << "sequences/" + sequence_number + "/image_1/" << std::setfill('0') << std::setw(6) << line_num << ".png";
         cv::Mat right_image = cv::imread(left_image_path.str(), CV_LOAD_IMAGE_GRAYSCALE);
+//以下为读取ground truth的代码
+//         std::getline(ground_truth_file, line);
+//         std::stringstream pose_stream(line);
+//         std::string s;
+//         Eigen::Matrix<double, 3, 4> gt_pose;
+//         for (std::size_t i = 0; i < 3; ++i)
+//         {
+//             for (std::size_t j = 0; j < 4; ++j)
+//             {
+//                 std::getline(pose_stream, s, ' ');
+//                 gt_pose(i, j) = stof(s);
+//             }
+//         }
 
-        std::getline(ground_truth_file, line);
-        std::stringstream pose_stream(line);
-        std::string s;
-        Eigen::Matrix<double, 3, 4> gt_pose;
-        for (std::size_t i = 0; i < 3; ++i)
-        {
-            for (std::size_t j = 0; j < 4; ++j)
-            {
-                std::getline(pose_stream, s, ' ');
-                gt_pose(i, j) = stof(s);
-            }
-        }
+//         Eigen::Quaterniond q_w_i(gt_pose.topLeftCorner<3, 3>());
+// //        Eigen::Quaterniond q = q_transform * q_w_i;
+// //        �˴�Ӧ������ * q_transform.inverse()��������ʾ
+//         Eigen::Quaterniond q = q_transform * q_w_i *q_transform.inverse();
+//         q.normalize();
+//         Eigen::Vector3d t = q_transform * gt_pose.topRightCorner<3, 1>();
 
-        Eigen::Quaterniond q_w_i(gt_pose.topLeftCorner<3, 3>());
-//        Eigen::Quaterniond q = q_transform * q_w_i;
-//        �˴�Ӧ������ * q_transform.inverse()��������ʾ
-        Eigen::Quaterniond q = q_transform * q_w_i *q_transform.inverse();
-        q.normalize();
-        Eigen::Vector3d t = q_transform * gt_pose.topRightCorner<3, 1>();
+//         odomGT.header.stamp = ros::Time().fromSec(timestamp);
+//         odomGT.pose.pose.orientation.x = q.x();
+//         odomGT.pose.pose.orientation.y = q.y();
+//         odomGT.pose.pose.orientation.z = q.z();
+//         odomGT.pose.pose.orientation.w = q.w();
+//         odomGT.pose.pose.position.x = t(0);
+//         odomGT.pose.pose.position.y = t(1);
+//         odomGT.pose.pose.position.z = t(2);
+//         pubOdomGT.publish(odomGT);
 
-        odomGT.header.stamp = ros::Time().fromSec(timestamp);
-        odomGT.pose.pose.orientation.x = q.x();
-        odomGT.pose.pose.orientation.y = q.y();
-        odomGT.pose.pose.orientation.z = q.z();
-        odomGT.pose.pose.orientation.w = q.w();
-        odomGT.pose.pose.position.x = t(0);
-        odomGT.pose.pose.position.y = t(1);
-        odomGT.pose.pose.position.z = t(2);
-        pubOdomGT.publish(odomGT);
+//         geometry_msgs::PoseStamped poseGT;
+//         poseGT.header = odomGT.header;
+//         poseGT.pose = odomGT.pose.pose;
+//         pathGT.header.stamp = odomGT.header.stamp;
+//         pathGT.poses.push_back(poseGT);
+//         pubPathGT.publish(pathGT);
 
-        geometry_msgs::PoseStamped poseGT;
-        poseGT.header = odomGT.header;
-        poseGT.pose = odomGT.pose.pose;
-        pathGT.header.stamp = odomGT.header.stamp;
-        pathGT.poses.push_back(poseGT);
-        pubPathGT.publish(pathGT);
-
-        // read lidar point cloud
+        // Step read lidar point cloud
         std::stringstream lidar_data_path;
         lidar_data_path << dataset_folder << "velodyne/sequences/" + sequence_number + "/velodyne/" 
                         << std::setfill('0') << std::setw(6) << line_num << ".bin";
-        std::vector<float> lidar_data = read_lidar_data(lidar_data_path.str());
+        std::vector<float> lidar_data = read_lidar_data(lidar_data_path.str());//调用函数读取.bin文件
         std::cout << "totally " << lidar_data.size() / 4.0 << " points in this lidar frame \n";
 
         std::vector<Eigen::Vector3d> lidar_points;
         std::vector<float> lidar_intensities;
         pcl::PointCloud<pcl::PointXYZI> laser_cloud;
+        //每个点占用四个float数据，分别为xyz，intensity
         for (std::size_t i = 0; i < lidar_data.size(); i += 4)
         {
             lidar_points.emplace_back(lidar_data[i], lidar_data[i+1], lidar_data[i+2]);
             lidar_intensities.push_back(lidar_data[i+3]);
-
+            //构建pcl点云格式
             pcl::PointXYZI point;
             point.x = lidar_data[i];
             point.y = lidar_data[i + 1];
@@ -152,17 +154,19 @@ int main(int argc, char** argv)
             laser_cloud.push_back(point);
         }
 
+        //转成ros消息格式
         sensor_msgs::PointCloud2 laser_cloud_msg;
         pcl::toROSMsg(laser_cloud, laser_cloud_msg);
         laser_cloud_msg.header.stamp = ros::Time().fromSec(timestamp);
-        laser_cloud_msg.header.frame_id = "/camera_init";
+        laser_cloud_msg.header.frame_id = "/camera_init";//坐标系名字为/camera_init
+        //发布点云数据
         pub_laser_cloud.publish(laser_cloud_msg);
-
+        //图片也转成ros格式发布出去
         sensor_msgs::ImagePtr image_left_msg = cv_bridge::CvImage(laser_cloud_msg.header, "mono8", left_image).toImageMsg();
         sensor_msgs::ImagePtr image_right_msg = cv_bridge::CvImage(laser_cloud_msg.header, "mono8", right_image).toImageMsg();
         pub_image_left.publish(image_left_msg);
         pub_image_right.publish(image_right_msg);
-
+        //根据配置，写入rosbag
         if (to_bag)
         {
             bag_out.write("/image_left", ros::Time::now(), image_left_msg);
