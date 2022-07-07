@@ -56,16 +56,16 @@
 #include "aloam_velodyne/tic_toc.h"
 #include "lidarFactor.hpp"
 
-#define DISTORTION 1//是否进行运动补偿标志位//llh这里的运动补偿是什么：经过研究发现，应该是KITTI数据集本来就是校正过的点云了，所以置为0则表示后面不进行插值校正，而对于VLP数据集，则按理说应该置为1，但是git上有人说效果反而更差
+#define DISTORTION 0//是否进行运动补偿标志位//llh这里的运动补偿是什么：经过研究发现，应该是KITTI数据集本来就是校正过的点云了，所以置为0则表示后面不进行插值校正，而对于VLP数据集，则按理说应该置为1，但是git上有人说效果反而更差
 
 
 int corner_correspondence = 0, plane_correspondence = 0;
 
 constexpr double SCAN_PERIOD = 0.1;
 constexpr double DISTANCE_SQ_THRESHOLD = 25;//近邻点距离平方阈值，小于该阈值认为找到匹配的特征点
-constexpr double NEARBY_SCAN = 2.5;
+constexpr double NEARBY_SCAN = 2.5;//寻找次临近点时距离上界，防止找的太远
 
-int skipFrameNum = 5;
+int skipFrameNum = 5;//下采样频率，也就是每隔多少帧往后端送一次数据，设置为1
 bool systemInited = false;
 
 double timeCornerPointsSharp = 0;
@@ -101,7 +101,7 @@ double para_q[4] = {0, 0, 0, 1};
 double para_t[3] = {0, 0, 0};
 
 // 下面的2个分别是优化变量para_q和para_t的映射：表示的是两个world坐标系下的位姿P之间的增量，例如△P = P0.inverse() * P1 每次优化求解前，都初始化为单位四元数和0向量的位移
-Eigen::Map<Eigen::Quaterniond> q_last_curr(para_q);
+Eigen::Map<Eigen::Quaterniond> q_last_curr(para_q);///有个需要注意的点，这里使用Map映射将数组转换为四元数，实部要写在最后，与直接定义四元数不同（另外，使用映射定义，原始数组变化，他也会跟着变化）
 Eigen::Map<Eigen::Vector3d> t_last_curr(para_t);
 
 std::queue<sensor_msgs::PointCloud2ConstPtr> cornerSharpBuf;//边缘点
@@ -129,6 +129,7 @@ void TransformToStart(PointType const *const pi, PointType *const po)
         s = 1.0;
     //s = 1;
     // std::cout << "插值前四元数为：" << q_last_curr.coeffs() << std::endl;
+    ///这里的q_last_curr实际上就是上一帧到当前帧的变换，作用某点坐标就是从lidar坐标系转移到上一帧坐标系下！！
     Eigen::Quaterniond q_point_last = Eigen::Quaterniond::Identity().slerp(s, q_last_curr);//对q_last_curr进行插值，得到//?q_last_curr是什么东西
     //  std::cout << "插值后四元数为：" << q_point_last.coeffs() << std::endl;
     Eigen::Vector3d t_point_last = s * t_last_curr;
@@ -228,7 +229,7 @@ int main(int argc, char **argv)
 
     ros::Publisher pubLaserCloudFullRes = nh.advertise<sensor_msgs::PointCloud2>("/velodyne_cloud_3", 100);
 
-    ros::Publisher pubLaserOdometry = nh.advertise<nav_msgs::Odometry>("/laser_odom_to_init", 100);
+    ros::Publisher pubLaserOdometry = nh.advertise<nav_msgs::Odometry>("/laser_odom_to_init", 100);//发送世界系到当前帧末尾的位姿变换
 
     ros::Publisher pubLaserPath = nh.advertise<nav_msgs::Path>("/laser_odom_path", 100);
 
@@ -239,7 +240,7 @@ int main(int argc, char **argv)
 
     while (ros::ok())
     {
-        ros::spinOnce();//?这个是在等待什么执行？
+        ros::spinOnce();//这个是在等待什么执行？触发一次回调函数，不用这个各个回调函数不会执行，输入的点云会存进缓存不会在回调函数中处理
 
         if (!cornerSharpBuf.empty() && !cornerLessSharpBuf.empty() &&
             !surfFlatBuf.empty() && !surfLessFlatBuf.empty() &&
@@ -284,7 +285,7 @@ int main(int argc, char **argv)
 
             TicToc t_whole;
             // Step 初始化，特殊处理第一帧点云数据 initializing
-            //?初始化怎么直接就完成了？
+            //初始化怎么直接就完成了？就是什么也不干的初始化
             if (!systemInited)// 第一帧不进行匹配，仅仅将 cornerPointsLessSharp 保存至 laserCloudCornerLast
                               //                     将 surfPointsLessFlat    保存至 laserCloudSurfLast
                               // 为下次匹配提供target
@@ -345,7 +346,7 @@ int main(int argc, char **argv)
                                 if (int(laserCloudCornerLast->points[j].intensity) <= closestPointScanID)// intensity整数部分存放的是scanID
                                     continue;
 
-                                // if not in nearby scans, end the loop（只在相邻的扫描线中寻找次近邻点）
+                                // if not in nearby scans, end the loop（只在较近的扫描线中寻找次近邻点）
                                 if (int(laserCloudCornerLast->points[j].intensity) > (closestPointScanID + NEARBY_SCAN))
                                     break;
 
@@ -410,6 +411,7 @@ int main(int argc, char **argv)
                             // 用点O，A，B构造点到线的距离的残差项，注意这三个点都是在上一帧的Lidar坐标系下，即，残差 = 点O到直线AB的距离
                             // 具体到介绍lidarFactor.cpp时再说明该残差的具体计算方法
                             ceres::CostFunction *cost_function = LidarEdgeFactor::Create(curr_point, last_point_a, last_point_b, s);
+                            ///下面这句显式的传入了待优化的变量！内部重载的括号运算符也就调用对应的变量了
                             problem.AddResidualBlock(cost_function, loss_function, para_q, para_t);//参数依次为残差计算方式、核函数、待优化变量
                             corner_correspondence++;
                         }//至此完成边缘点残差函数的构建
@@ -419,7 +421,7 @@ int main(int argc, char **argv)
                     for (int i = 0; i < surfPointsFlatNum; ++i)
                     {
                         TransformToStart(&(surfPointsFlat->points[i]), &pointSel);
-                        kdtreeSurfLast->nearestKSearch(pointSel, 1, pointSearchInd, pointSearchSqDis);
+                        kdtreeSurfLast->nearestKSearch(pointSel, 1, pointSearchInd, pointSearchSqDis);//寻找上一帧中最近邻面点
 
                         int closestPointInd = -1, minPointInd2 = -1, minPointInd3 = -1;
                         if (pointSearchSqDis[0] < DISTANCE_SQ_THRESHOLD)// 找到的最近邻点A有效
@@ -514,7 +516,7 @@ int main(int argc, char **argv)
                                 plane_correspondence++;
                             }//至此构建完成一个平面点的残差
                         }
-                    }//至此完成对平面点的遍历
+                    }///至此完成对平面点的遍历
 
                     printf("data association time %f ms \n", t_data.toc());
 
@@ -525,7 +527,7 @@ int main(int argc, char **argv)
 
                     TicToc t_solver;
                     ceres::Solver::Options options;
-                    options.linear_solver_type = ceres::DENSE_QR;
+                    options.linear_solver_type = ceres::DENSE_QR;//与视觉SLAM问题不同，矩阵比较稠密
                     options.max_num_iterations = 4;
                     options.minimizer_progress_to_stdout = false;
                     ceres::Solver::Summary summary;
@@ -589,7 +591,7 @@ int main(int argc, char **argv)
             }
 
             pcl::PointCloud<PointType>::Ptr laserCloudTemp = cornerPointsLessSharp;
-            cornerPointsLessSharp = laserCloudCornerLast;//?这里为什么把上一帧的角点赋值给当前帧角点
+            cornerPointsLessSharp = laserCloudCornerLast;                               //这里为什么把上一帧的角点赋值给当前帧角点？好像没啥用
             laserCloudCornerLast = laserCloudTemp;
 
             laserCloudTemp = surfPointsLessFlat;
@@ -607,7 +609,7 @@ int main(int argc, char **argv)
             if (frameCount % skipFrameNum == 0)
             {
                 frameCount = 0;
-
+                ///注意，这里发送到后端的是较多边缘点和较多平面点，因为上边倒腾了一下
                 sensor_msgs::PointCloud2 laserCloudCornerLast2;
                 pcl::toROSMsg(*laserCloudCornerLast, laserCloudCornerLast2);
                 laserCloudCornerLast2.header.stamp = ros::Time().fromSec(timeSurfPointsLessFlat);

@@ -25,7 +25,7 @@ struct LidarEdgeFactor
 		: curr_point(curr_point_), last_point_a(last_point_a_), last_point_b(last_point_b_), s(s_) {}
 
 	template <typename T>
-	bool operator()(const T *q, const T *t, T *residual) const
+	bool operator()(const T *q, const T *t, T *residual) const//依次是待优化参数块，残差
 	{
 		Eigen::Matrix<T, 3, 1> cp{T(curr_point.x()), T(curr_point.y()), T(curr_point.z())};
 		Eigen::Matrix<T, 3, 1> lpa{T(last_point_a.x()), T(last_point_a.y()), T(last_point_a.z())};
@@ -50,6 +50,7 @@ struct LidarEdgeFactor
 		// 最终的残差本来应该是residual[0] = nu.norm() / de.norm(); 为啥也分成3个，我也不知
 		// 道，从我试验的效果来看，确实是下面的残差函数形式，最后输出的pose精度会好一点点，这里需要
 		// 注意的是，所有的residual都不用加fabs，因为Ceres内部会对其求 平方 作为最终的残差项
+		///这里相当于仍然保留了距离向量，而不是仅保留距离向量的模长，理论上应该都可以
 		residual[0] = nu.x() / de.norm();
 		residual[1] = nu.y() / de.norm();
 		residual[2] = nu.z() / de.norm();
@@ -149,7 +150,7 @@ struct LidarPlaneNormFactor
 		point_w = q_w_curr * cp + t_w_curr;
 
 		Eigen::Matrix<T, 3, 1> norm(T(plane_unit_norm.x()), T(plane_unit_norm.y()), T(plane_unit_norm.z()));
-		residual[0] = norm.dot(point_w) + T(negative_OA_dot_norm);
+		residual[0] = norm.dot(point_w) + T(negative_OA_dot_norm);//点积加上归一化常数项就是距离了（注意，对于Ceres距离不用取模，可以对比一下laserMapping的距离计算，用了fabs()）
 		return true;
 	}
 
